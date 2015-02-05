@@ -16,6 +16,7 @@ Prerequisites
 * GnuCash Python Bindings
 * MySQL Server (optional, to store Gnucash data into MySQL)
 * MTP tools (optional, to import from MTP device)
+* ofxparse 0.14+
 
 Getting Started
 ---------------
@@ -39,6 +40,14 @@ The above command should log two "Adding transaction for account.." lines and wi
 Open accounts.gnucash (or the equivalent database in case of MySQL) with GnuCash before and after executing the above command line to see the difference.
 
 The Python script will assume "EUR" as default currency (QIF files do not specify any currency). Use the `--currency` command line flag to change this.
+
+You can also import OFX files with the `--account` command line flag (this is a mandatory flag when importing OFX files).
+The opposing account is always "Imbalance-CUR", where CUR is the three characters representing the currency used in the OFX files.
+Gnucash file or equivalent database should have "Imbalance-CUR" account before importing.
+The example usage is as follows:
+
+    ./import.py -v -f examples/accounts.gnucash examples/check.ofx --account "Checking Account"
+    ./import.py -v -f mysql://$USERNAME:$PASSWORD@$HOSTNAME/accounts examples/check.ofx --account "Checking Account"
 
 How to import from MTP device (Android phone)
 ---------------------------------------------

@@ -16,6 +16,7 @@ import re
 import subprocess
 import tempfile
 import qif
+import ofx
 from decimal import Decimal
 
 from gnucash import Session, Transaction, Split, GncNumeric
@@ -116,7 +117,13 @@ def read_entries(fn, imported):
             logging.info('Skipping %s (already imported)', base)
             return []
         with open(fn) as fd:
-            items = qif.parse_qif(fd)
+            if fn.endswith('.qif'):
+                items = qif.parse_qif(fd)
+            elif fn.endswith('.ofx'):
+                items = ofx.parse_ofx(fd)
+            else:
+                raise Exception('File format not supported')
+
         imported.add(fn)
     logging.debug('Read %s items from %s', len(items), fn)
     return items
@@ -171,7 +178,15 @@ def main(args):
 
     all_items = []
     for fn in args.file:
-        all_items.extend(read_entries(fn, imported))
+        items = read_entries(fn, imported)
+        if fn.endswith('.ofx'):
+            if args.account is None:
+                raise Exception('Account should be specified for OFX file')
+            else:
+                for item in items:
+                    item.account = args.account
+                    item.split_category = "Imbalance-" + args.currency
+        all_items.extend(items)
 
     if all_items:
         write_transactions_to_gnucash(args.gnucash_file, args.currency, all_items, dry_run=args.dry_run,
@@ -188,6 +203,7 @@ if __name__ == '__main__':
     parser.add_argument('-q', '--quiet', help='Silent mode, only log warnings', action='store_true')
     parser.add_argument('--dry-run', help='Noop, do not write anything', action='store_true')
     parser.add_argument('--date-from', help='Only import transaction >= date (YYYY-MM-DD)')
+    parser.add_argument('--account', help='Accout name (e.g., "Cash in Wallet")')
     parser.add_argument('-c', '--currency', metavar='ISOCODE', help='Currency ISO code (default: EUR)', default='EUR')
     parser.add_argument('-f', '--gnucash-file', help='Gnucash data file')
     parser.add_argument('file', nargs='+',
