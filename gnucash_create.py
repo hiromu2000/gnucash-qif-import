@@ -17,7 +17,6 @@ import subprocess
 import tempfile
 import qif
 import ofx
-import parse_json
 from decimal import Decimal
 
 from gnucash import Session, Transaction, Split, GncNumeric
@@ -123,7 +122,16 @@ def read_entries(fn, imported):
             elif fn.endswith('.ofx'):
                 items = ofx.parse_ofx(fd)
             elif fn.endswith('.json'):
-                items = parse_json.parse_json(fd)
+                items = []
+                trans = json.load(fd)['create']
+                for tran in trans:
+                    curItem = qif.QifItem()
+                    curItem.memo = tran['place'].encode('utf-8')
+                    curItem.split_amount = tran['amount']
+                    curItem.split_category = tran['genre_gnucash'].encode('utf-8')
+                    curItem.account = tran['from_account_gnucash'].encode('utf-8')
+                    curItem.date = datetime.datetime.strptime(tran['date'], '%Y-%m-%d')
+                    items.append(curItem)
             else:
                 raise Exception('File format not supported')
 

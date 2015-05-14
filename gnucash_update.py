@@ -17,7 +17,6 @@ import subprocess
 import tempfile
 import qif
 import ofx
-import parse_json
 from decimal import Decimal
 
 from gnucash import Session, Transaction, Split, GncNumeric
@@ -38,12 +37,67 @@ def lookup_account(root, name):
     path = name.split(':')
     return lookup_account_by_path(root, path)
 
+def get_transaction_list(account):
+    """Returns all transactions in account.
+    Splits are derived from account.GetSplitList().
+   
+    options:
+    account:    Account to get transactions from.
+    
+    """
+    
+    split_list=account.GetSplitList()
+    transaction_list=[]
+    for split in split_list:
+        if type(split) != Split:
+              split = Split(instance=split)
+        transaction=split.GetParent()
+        if not (transaction in transaction_list):       # this check may not be necessary.
+          transaction_list.append(transaction)
+    return transaction_list
+
+def list_transaction(book, item, currency):
+    root = book.get_root_account()
+    acc = lookup_account(root, 'Imbalance-JPY')
+    trans = get_transaction_list(acc)
+    for tran in trans:
+        #print dir(tran.GetDate())
+        splits = tran.GetSplitList()
+        for split in splits:
+            gnc_amount = split.GetAmount()
+            amount = Decimal(gnc_amount.num()) / Decimal(gnc_amount.denom())
+            post_date = datetime.datetime.fromtimestamp(tran.GetDate())
+            #if split.GetAccount().GetName() == 'Imbalance-JPY' and Decimal(item.split_amount * -1) == amount: 
+            if (Decimal(item.split_amount * -1) == amount or Decimal(item.split_amount) == amount) and tran.GetDescription() == item.memo and post_date == item.date:
+                if split.GetAccount().GetName() == 'Imbalance-JPY':
+                    to_acc = lookup_account(root, item.split_category)
+                    '''
+                    print 
+                    print tran.GetDescription()
+                    # print Decimal(item.split_amount * -1) == amount
+                    print split.GetAccount().GetName()
+                    #print amount
+                    #print item.split_amount
+                    print item.split_category
+                    print to_acc.GetName()
+                    print post_date
+                    '''
+                    split.SetAccount(to_acc)
+                    
+    return
 
 def add_transaction(book, item, currency):
     logging.info('Adding transaction for account "%s" (%s %s)..', item.account, item.split_amount,
                  currency.get_mnemonic())
     root = book.get_root_account()
-    acc = lookup_account(root, item.account)
+    acc = lookup_account(root, 'Imbalance-JPY')
+    trans = get_transaction_list(acc)
+    '''
+    for tran in trans:
+        splits = tran.GetSplitList()
+        for split in splits:
+            if split.GetAccount().GetName() == 'Imbalance-JPY':
+    '''
 
     tx = Transaction(book)
     tx.BeginEdit()
@@ -123,7 +177,16 @@ def read_entries(fn, imported):
             elif fn.endswith('.ofx'):
                 items = ofx.parse_ofx(fd)
             elif fn.endswith('.json'):
-                items = parse_json.parse_json(fd)
+                items = []
+                trans = json.load(fd)['update']
+                for tran in trans:
+                    curItem = qif.QifItem()
+                    curItem.memo = tran['place'].encode('utf-8')
+                    curItem.split_amount = tran['amount']
+                    curItem.split_category = tran['genre_gnucash'].encode('utf-8')
+                    curItem.account = tran['from_account_gnucash'].encode('utf-8')
+                    curItem.date = datetime.datetime.strptime(tran['date'], '%Y-%m-%d')
+                    items.append(curItem)
             else:
                 raise Exception('File format not supported')
 
@@ -151,7 +214,8 @@ def write_transactions_to_gnucash(gnucash_file, currency, all_items, dry_run=Fal
             logging.info('Skipping entry %s (%s) --- already imported!', item.date.strftime('%Y-%m-%d'),
                          item.split_amount)
             continue
-        add_transaction(book, item, currency)
+        # add_transaction(book, item, currency)
+        list_transaction(book, item, currency)
         imported_items.add(item.as_tuple())
 
     if dry_run:
