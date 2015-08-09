@@ -57,6 +57,8 @@ def get_transaction_list(account):
     return transaction_list
 
 def list_transaction(book, item, currency):
+    logging.info('Updating transaction for account "%s" (%s %s)..', item.account, item.split_amount,
+                 currency.get_mnemonic())
     root = book.get_root_account()
     acc = lookup_account(root, 'Imbalance-JPY')
     trans = get_transaction_list(acc)
